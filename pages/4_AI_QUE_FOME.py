@@ -1,6 +1,8 @@
 import streamlit as st
 import pandas as pd
 from io import BytesIO
+import os
+import re
 
 st.title('Comparação de Planilhas AI QUE FOME e AI QUE FOME DB')
 
@@ -13,7 +15,6 @@ uploaded_file_aiquefomedb = st.file_uploader('Carregar planilha AI QUE FOME DB',
 # Verifica se ambos os arquivos foram carregados
 if uploaded_file_aiquefome is not None and uploaded_file_aiquefomedb is not None:
     # Detectar a extensão dos arquivos para usar o engine adequado
-    import os
     ext_aiquefome = os.path.splitext(uploaded_file_aiquefome.name)[1]
     ext_aiquefomedb = os.path.splitext(uploaded_file_aiquefomedb.name)[1]
     engine_aiquefome = 'xlrd' if ext_aiquefome == '.xls' else 'openpyxl'
@@ -27,19 +28,16 @@ if uploaded_file_aiquefome is not None and uploaded_file_aiquefomedb is not None
     # Manter apenas as colunas desejadas
     df_aiquefome = df_aiquefome[['Nro. Pedido', 'Data', 'Total (R$)', 'Desconto (R$)']]
 
-    # Remover o horário da coluna 'Data' se houver
-    df_aiquefome['Data'] = df_aiquefome['Data'].astype(str).str.split(' ').str[0]
-
-    # Converter 'Data' para datetime com dayfirst=True e formatar para dia/mês/ano
+    # Remover o horário da coluna 'Data' e converter para datetime
     df_aiquefome['Data'] = pd.to_datetime(
-        df_aiquefome['Data'],
+        df_aiquefome['Data'].dt.date,
         dayfirst=True,
         errors='coerce'
     ).dt.strftime('%d/%m/%Y')
 
     # Remover símbolos de moeda e converter 'Total (R$)' e 'Desconto (R$)' para float
     for col in ['Total (R$)', 'Desconto (R$)']:
-        df_aiquefome[col] = df_aiquefome[col].replace({'R\$': '', ',': '.', '\s+': ''}, regex=True)
+        df_aiquefome[col] = df_aiquefome[col].replace({'[R$ ]': '', ',': '.', '\s+': ''}, regex=True)
         df_aiquefome[col] = df_aiquefome[col].astype(float)
 
     # Substituir NaN em 'Desconto (R$)' por 0
@@ -52,12 +50,9 @@ if uploaded_file_aiquefome is not None and uploaded_file_aiquefomedb is not None
     # Manter apenas as colunas desejadas
     df_aiquefomedb = df_aiquefomedb[['DATA', 'VALOR', 'ID PEDIDO']]
 
-    # Remover o horário da coluna 'DATA' se houver
-    df_aiquefomedb['DATA'] = df_aiquefomedb['DATA'].astype(str).str.split(' ').str[0]
-
-    # Converter 'DATA' para datetime com dayfirst=True e formatar para dia/mês/ano
+    # Remover o horário da coluna 'DATA' e converter para datetime
     df_aiquefomedb['DATA'] = pd.to_datetime(
-        df_aiquefomedb['DATA'],
+        df_aiquefomedb['DATA'].dt.date,
         dayfirst=True,
         errors='coerce'
     ).dt.strftime('%d/%m/%Y')
