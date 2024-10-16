@@ -45,7 +45,7 @@ if uploaded_file_aiquefome is not None and uploaded_file_aiquefomedb is not None
     df_aiquefomedb['DATA'] = df_aiquefomedb['DATA'].astype(str).str.split(' ').str[0]
 
     # Converter 'DATA' para datetime com dayfirst=True e formatar para dia/mês/ano
-    df_aiquefomedb['DATA'] = pd.to_datetime(df_aiquefomedb['DATA'], dayfirst=True).dt.strftime('%d/%m/%Y')
+    #df_aiquefomedb['DATA'] = pd.to_datetime(df_aiquefomedb['DATA'], dayfirst=True).dt.strftime('%d/%m/%Y')
 
     # Converter 'VALOR' para float
     df_aiquefomedb['VALOR'] = df_aiquefomedb['VALOR'].astype(float)
