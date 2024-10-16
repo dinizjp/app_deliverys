@@ -34,7 +34,8 @@ if uploaded_file_aiquefome is not None and uploaded_file_aiquefomedb is not None
     df_aiquefome['Data'] = pd.to_datetime(
         df_aiquefome['Data'],
         dayfirst=True,
-        errors='coerce'
+        errors='coerce',
+        inplace=True
     ).dt.strftime('%d/%m/%Y')
 
     # Remover símbolos de moeda e converter 'Total (R$)' e 'Desconto (R$)' para float
