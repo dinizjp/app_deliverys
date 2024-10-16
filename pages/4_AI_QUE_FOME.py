@@ -27,15 +27,15 @@ if uploaded_file_aiquefome is not None and uploaded_file_aiquefomedb is not None
     # Manter apenas as colunas desejadas
     df_aiquefome = df_aiquefome[['Nro. Pedido', 'Data', 'Total (R$)', 'Desconto (R$)']]
 
-    # Remover o horário da coluna 'Data' (se houver) antes de converter
+    # Remover o horário da coluna 'Data' (se houver)
     df_aiquefome['Data'] = df_aiquefome['Data'].astype(str).str.split(' ').str[0]
 
-    # Converter 'Data' para datetime com dayfirst=True
+    # Converter 'Data' para datetime especificando o formato exato
     df_aiquefome['Data'] = pd.to_datetime(
         df_aiquefome['Data'],
-        dayfirst=True,
+        format='%d/%m/%Y',
         errors='coerce'
-    ).dt.strftime('%d/%m/%Y')
+    )
 
     # Remover símbolos de moeda e converter 'Total (R$)' e 'Desconto (R$)' para float
     for col in ['Total (R$)', 'Desconto (R$)']:
@@ -52,15 +52,15 @@ if uploaded_file_aiquefome is not None and uploaded_file_aiquefomedb is not None
     # Manter apenas as colunas desejadas
     df_aiquefomedb = df_aiquefomedb[['DATA', 'VALOR', 'ID PEDIDO']]
 
-    # Remover o horário da coluna 'DATA' (se houver) antes de converter
+    # Remover o horário da coluna 'DATA' (se houver)
     df_aiquefomedb['DATA'] = df_aiquefomedb['DATA'].astype(str).str.split(' ').str[0]
 
-    # Converter 'DATA' para datetime com dayfirst=True
+    # Converter 'DATA' para datetime especificando o formato exato
     df_aiquefomedb['DATA'] = pd.to_datetime(
         df_aiquefomedb['DATA'],
-        dayfirst=True,
+        format='%d/%m/%Y',
         errors='coerce'
-    ).dt.strftime('%d/%m/%Y')
+    )
 
     # Converter 'VALOR' para float
     df_aiquefomedb['VALOR'] = df_aiquefomedb['VALOR'].astype(float)
