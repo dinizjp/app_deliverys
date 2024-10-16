@@ -5,23 +5,37 @@ from io import BytesIO
 st.title('Comparação de Planilhas AI QUE FOME e AI QUE FOME DB')
 
 # Upload da planilha do AI QUE FOME
-uploaded_file_aiquefome = st.file_uploader('Carregar planilha AI QUE FOME', type=['xls'], key='aiquefome')
+uploaded_file_aiquefome = st.file_uploader('Carregar planilha AI QUE FOME', type=['xls', 'xlsx'], key='aiquefome')
 
 # Upload da planilha AI QUE FOME DB
-uploaded_file_aiquefomedb = st.file_uploader('Carregar planilha AI QUE FOME DB', type=['xlsx'], key='aiquefomedb')
+uploaded_file_aiquefomedb = st.file_uploader('Carregar planilha AI QUE FOME DB', type=['xls', 'xlsx'], key='aiquefomedb')
 
 # Verifica se ambos os arquivos foram carregados
 if uploaded_file_aiquefome is not None and uploaded_file_aiquefomedb is not None:
+    # Detectar a extensão dos arquivos para usar o engine adequado
+    import os
+    ext_aiquefome = os.path.splitext(uploaded_file_aiquefome.name)[1]
+    ext_aiquefomedb = os.path.splitext(uploaded_file_aiquefomedb.name)[1]
+    engine_aiquefome = 'xlrd' if ext_aiquefome == '.xls' else 'openpyxl'
+    engine_aiquefomedb = 'xlrd' if ext_aiquefomedb == '.xls' else 'openpyxl'
+
     # Carrega as planilhas
-    df_aiquefome = pd.read_excel(uploaded_file_aiquefome)
-    df_aiquefomedb = pd.read_excel(uploaded_file_aiquefomedb)
+    df_aiquefome = pd.read_excel(uploaded_file_aiquefome, engine=engine_aiquefome)
+    df_aiquefomedb = pd.read_excel(uploaded_file_aiquefomedb, engine=engine_aiquefomedb)
 
     # Tratamento da planilha AI QUE FOME
     # Manter apenas as colunas desejadas
     df_aiquefome = df_aiquefome[['Nro. Pedido', 'Data', 'Total (R$)', 'Desconto (R$)']]
 
-    # Converter 'Data' para datetime e formatar para dia/mês/ano
-    df_aiquefome['Data'] = pd.to_datetime(df_aiquefome['Data']).dt.strftime('%d/%m/%Y')
+    # Remover o horário da coluna 'Data' se houver
+    df_aiquefome['Data'] = df_aiquefome['Data'].astype(str).str.split(' ').str[0]
+
+    # Converter 'Data' para datetime com dayfirst=True e formatar para dia/mês/ano
+    df_aiquefome['Data'] = pd.to_datetime(
+        df_aiquefome['Data'],
+        dayfirst=True,
+        errors='coerce'
+    ).dt.strftime('%d/%m/%Y')
 
     # Remover símbolos de moeda e converter 'Total (R$)' e 'Desconto (R$)' para float
     for col in ['Total (R$)', 'Desconto (R$)']:
@@ -38,8 +52,15 @@ if uploaded_file_aiquefome is not None and uploaded_file_aiquefomedb is not None
     # Manter apenas as colunas desejadas
     df_aiquefomedb = df_aiquefomedb[['DATA', 'VALOR', 'ID PEDIDO']]
 
-    # Converter 'DATA' para datetime e formatar para dia/mês/ano
-    df_aiquefomedb['DATA'] = pd.to_datetime(df_aiquefomedb['DATA']).dt.strftime('%d/%m/%Y')
+    # Remover o horário da coluna 'DATA' se houver
+    df_aiquefomedb['DATA'] = df_aiquefomedb['DATA'].astype(str).str.split(' ').str[0]
+
+    # Converter 'DATA' para datetime com dayfirst=True e formatar para dia/mês/ano
+    df_aiquefomedb['DATA'] = pd.to_datetime(
+        df_aiquefomedb['DATA'],
+        dayfirst=True,
+        errors='coerce'
+    ).dt.strftime('%d/%m/%Y')
 
     # Converter 'VALOR' para float
     df_aiquefomedb['VALOR'] = df_aiquefomedb['VALOR'].astype(float)
