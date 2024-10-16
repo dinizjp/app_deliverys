@@ -16,15 +16,21 @@ if uploaded_file_aiquefome is not None and uploaded_file_aiquefomedb is not None
     df_aiquefome = pd.read_excel(uploaded_file_aiquefome)
     df_aiquefomedb = pd.read_excel(uploaded_file_aiquefomedb)
 
-    # Tratamento da planilha AI QUE FOME
+    # --- Tratamento da Planilha AI QUE FOME ---
     # Manter apenas as colunas desejadas
     df_aiquefome = df_aiquefome[['Nro. Pedido', 'Data', 'Total (R$)', 'Desconto (R$)']]
 
-    # Remover o horário da coluna 'Data' se houver
-    df_aiquefome['Data'] = df_aiquefome['Data'].astype(str).str.split(' ').str[0]
+    # Remover o horário da coluna 'Data' se houver e converter para datetime
+    df_aiquefome['Data'] = pd.to_datetime(df_aiquefome['Data'].astype(str).str.split(' ').str[0], dayfirst=True, errors='coerce')
 
-    # Converter 'Data' para datetime com dayfirst=True e formatar para dia/mês/ano
-    df_aiquefome['Data'] = pd.to_datetime(df_aiquefome['Data'], dayfirst=True).dt.strftime('%d/%m/%Y')
+    # Verificar e informar datas inválidas
+    datas_invalidas_aiquefome = df_aiquefome[df_aiquefome['Data'].isna()]
+    if not datas_invalidas_aiquefome.empty:
+        st.warning("Existem datas inválidas na planilha AI QUE FOME que não puderam ser convertidas:")
+        st.write(datas_invalidas_aiquefome)
+
+    # Formatar para 'dd/mm/yyyy' onde possível
+    df_aiquefome['Data'] = df_aiquefome['Data'].dt.strftime('%d/%m/%Y')
 
     # Remover símbolos de moeda e converter 'Total (R$)' e 'Desconto (R$)' para float
     for col in ['Total (R$)', 'Desconto (R$)']:
@@ -37,15 +43,21 @@ if uploaded_file_aiquefome is not None and uploaded_file_aiquefomedb is not None
     # Criar a coluna 'Valor AI QUE FOME' somando 'Total (R$)' e 'Desconto (R$)'
     df_aiquefome['Valor AI QUE FOME'] = df_aiquefome['Total (R$)'] + df_aiquefome['Desconto (R$)']
 
-    # Tratamento da planilha AI QUE FOME DB
+    # --- Tratamento da Planilha AI QUE FOME DB ---
     # Manter apenas as colunas desejadas
     df_aiquefomedb = df_aiquefomedb[['DATA', 'VALOR', 'ID PEDIDO']]
 
-    # Remover o horário da coluna 'DATA' se houver
-    df_aiquefomedb['DATA'] = df_aiquefomedb['DATA'].astype(str).str.split(' ').str[0]
+    # Remover o horário da coluna 'DATA' se houver e converter para datetime
+    df_aiquefomedb['DATA'] = pd.to_datetime(df_aiquefomedb['DATA'].astype(str).str.split(' ').str[0], dayfirst=True, errors='coerce')
 
-    # Converter 'DATA' para datetime com dayfirst=True e formatar para dia/mês/ano
-    #df_aiquefomedb['DATA'] = pd.to_datetime(df_aiquefomedb['DATA'], dayfirst=True).dt.strftime('%d/%m/%Y')
+    # Verificar e informar datas inválidas
+    datas_invalidas_aiquefomedb = df_aiquefomedb[df_aiquefomedb['DATA'].isna()]
+    if not datas_invalidas_aiquefomedb.empty:
+        st.warning("Existem datas inválidas na planilha AI QUE FOME DB que não puderam ser convertidas:")
+        st.write(datas_invalidas_aiquefomedb)
+
+    # Formatar para 'dd/mm/yyyy' onde possível
+    df_aiquefomedb['DATA'] = df_aiquefomedb['DATA'].dt.strftime('%d/%m/%Y')
 
     # Converter 'VALOR' para float
     df_aiquefomedb['VALOR'] = df_aiquefomedb['VALOR'].astype(float)
@@ -115,11 +127,21 @@ if uploaded_file_aiquefome is not None and uploaded_file_aiquefomedb is not None
         diferenca_col = len(final_result.columns)
         worksheet.write(0, diferenca_col, 'Diferença')
 
+        # Função para converter índice de coluna para letra(s) do Excel
+        def col_letter(col_index):
+            letter = ''
+            while col_index >= 0:
+                letter = chr(col_index % 26 + 65) + letter
+                col_index = col_index // 26 - 1
+            return letter
+
         # Escrever a fórmula de diferença para cada linha
         for row_num in range(1, len(final_result) + 1):
-            cell_formula = f"=IF(ISBLANK(${chr(65 + valor_col_aiquefomedb)}{row_num + 1})," \
-                           f"${chr(65 + valor_col_aiquefome)}{row_num + 1}," \
-                           f"${chr(65 + valor_col_aiquefome)}{row_num + 1}-${chr(65 + valor_col_aiquefomedb)}{row_num + 1})"
+            col_aiquefomedb_letter = col_letter(valor_col_aiquefomedb)
+            col_aiquefome_letter = col_letter(valor_col_aiquefome)
+            cell_formula = f"=IF(ISBLANK({col_aiquefomedb_letter}{row_num + 1})," \
+                           f"{col_aiquefome_letter}{row_num + 1}," \
+                           f"{col_aiquefome_letter}{row_num + 1}-{col_aiquefomedb_letter}{row_num + 1})"
             worksheet.write_formula(row_num, diferenca_col, cell_formula)
 
         # Definir a linha onde os totais serão escritos (após os dados)
@@ -133,8 +155,8 @@ if uploaded_file_aiquefome is not None and uploaded_file_aiquefomedb is not None
 
         # Escrever as fórmulas de soma para as colunas de valores
         for col_index in [valor_col_aiquefome, valor_col_aiquefomedb]:
-            col_letter = chr(65 + col_index)
-            formula = f"=SUM({col_letter}2:{col_letter}{total_row})"
+            col_letter_formula = col_letter(col_index)
+            formula = f"=SUM({col_letter_formula}2:{col_letter_formula}{total_row})"
             worksheet.write_formula(
                 total_row,
                 col_index,
@@ -145,12 +167,12 @@ if uploaded_file_aiquefome is not None and uploaded_file_aiquefomedb is not None
             worksheet.set_column(col_index, col_index, 15, currency_format)
 
         # Soma dos valores absolutos para a coluna 'Diferença'
-        col_letter = chr(65 + diferenca_col)
-        formula = f"=SUMPRODUCT(ABS({col_letter}2:{col_letter}{total_row}))"
+        col_letter_diferenca = col_letter(diferenca_col)
+        formula_diferenca = f"=SUMPRODUCT(ABS({col_letter_diferenca}2:{col_letter_diferenca}{total_row}))"
         worksheet.write_formula(
             total_row,
             diferenca_col,
-            formula,
+            formula_diferenca,
             currency_format
         )
         # Aplicar o formato de moeda à coluna 'Diferença'
