@@ -50,14 +50,14 @@ if uploaded_file_aiquefome is not None and uploaded_file_aiquefomedb is not None
 
     # Tratamento da planilha AI QUE FOME DB
     # Manter apenas as colunas desejadas
-    df_aiquefomedb = df_aiquefomedb[['DATA', 'VALOR', 'ID PEDIDO']]
+    df_aiquefomedb = df_aiquefomedb[['DATA/HORA', 'VALOR', 'ID PEDIDO']]
 
     # Remover o horário da coluna 'DATA' (se houver)
-    df_aiquefomedb['DATA'] = df_aiquefomedb['DATA'].astype(str).str.split(' ').str[0]
+    df_aiquefomedb['DATA/HORA'] = df_aiquefomedb['DATA/HORA'].astype(str).str.split(' ').str[0]
 
     # Converter 'DATA' para datetime especificando o formato exato
-    df_aiquefomedb['DATA'] = pd.to_datetime(
-        df_aiquefomedb['DATA'],
+    df_aiquefomedb['DATA/HORA'] = pd.to_datetime(
+        df_aiquefomedb['DATA/HORA'],
         format='%d/%m/%Y',
         errors='coerce'
     )
@@ -66,7 +66,7 @@ if uploaded_file_aiquefome is not None and uploaded_file_aiquefomedb is not None
     df_aiquefomedb['VALOR'] = df_aiquefomedb['VALOR'].astype(float)
 
     # Renomear colunas para evitar conflitos e facilitar o merge
-    df_aiquefomedb.rename(columns={'DATA': 'Data', 'VALOR': 'Valor AI QUE FOME DB'}, inplace=True)
+    df_aiquefomedb.rename(columns={'DATA/HORA': 'Data', 'VALOR': 'Valor AI QUE FOME DB'}, inplace=True)
 
     # Ordena os DataFrames por 'Valor' para consistência
     df_aiquefome.sort_values('Valor AI QUE FOME', ascending=True, inplace=True)
