@@ -20,8 +20,12 @@ if uploaded_file_maisdelivery is not None and uploaded_file_maisdeliverydb is no
     # Manter apenas as colunas desejadas
     df_maisdelivery = df_maisdelivery[['Data Pedido', 'Número', 'Valor (R$)']]
 
-    # Converter 'Data Pedido' para datetime e formatar para dia/mês/ano
-    df_maisdelivery['Data Pedido'] = pd.to_datetime(df_maisdelivery['Data Pedido']).dt.strftime('%d/%m/%Y')
+    # Converter 'Data Pedido' para datetime com dayfirst=True e formatar para dia/mês/ano
+    df_maisdelivery['Data Pedido'] = pd.to_datetime(
+        df_maisdelivery['Data Pedido'],
+        dayfirst=True,
+        errors='coerce'
+    ).dt.strftime('%d/%m/%Y')
 
     # Remover o símbolo 'R$' e converter 'Valor (R$)' para float
     df_maisdelivery['Valor (R$)'] = df_maisdelivery['Valor (R$)'].replace({'R\$': '', ',': '.', '\s+': ''}, regex=True)
@@ -31,8 +35,12 @@ if uploaded_file_maisdelivery is not None and uploaded_file_maisdeliverydb is no
     # Manter apenas as colunas desejadas
     df_maisdeliverydb = df_maisdeliverydb[['DATA', 'VALOR', 'ID PEDIDO']]
 
-    # Converter 'DATA' para datetime e formatar para dia/mês/ano
-    df_maisdeliverydb['DATA'] = pd.to_datetime(df_maisdeliverydb['DATA']).dt.strftime('%d/%m/%Y')
+    # Converter 'DATA' para datetime com dayfirst=True e formatar para dia/mês/ano
+    df_maisdeliverydb['DATA'] = pd.to_datetime(
+        df_maisdeliverydb['DATA'],
+        dayfirst=True,
+        errors='coerce'
+    ).dt.strftime('%d/%m/%Y')
 
     # Converter 'VALOR' para float
     df_maisdeliverydb['VALOR'] = df_maisdeliverydb['VALOR'].astype(float)
@@ -40,7 +48,6 @@ if uploaded_file_maisdelivery is not None and uploaded_file_maisdeliverydb is no
     # Renomear colunas para evitar conflitos e facilitar o merge
     df_maisdelivery.rename(columns={'Data Pedido': 'Data', 'Valor (R$)': 'Valor Mais Delivery'}, inplace=True)
     df_maisdeliverydb.rename(columns={'DATA': 'Data', 'VALOR': 'Valor Mais Delivery DB'}, inplace=True)
-
     # Ordena os DataFrames por 'Valor' para consistência
     df_maisdelivery.sort_values('Valor Mais Delivery', ascending=True, inplace=True)
     df_maisdeliverydb.sort_values('Valor Mais Delivery DB', ascending=True, inplace=True)
