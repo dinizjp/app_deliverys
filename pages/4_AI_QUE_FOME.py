@@ -1,6 +1,7 @@
 import streamlit as st
 import pandas as pd
 from io import BytesIO
+from datetime import datetime
 
 st.title('Comparação de Planilhas AI QUE FOME e AI QUE FOME DB')
 
@@ -16,12 +17,21 @@ if uploaded_file_aiquefome is not None and uploaded_file_aiquefomedb is not None
     df_aiquefome = pd.read_excel(uploaded_file_aiquefome)
     df_aiquefomedb = pd.read_excel(uploaded_file_aiquefomedb)
 
+    # Função personalizada para parsing de datas
+    def parse_date(date_str):
+        for fmt in ('%d/%m/%Y', '%m/%d/%Y', '%Y-%m-%d'):
+            try:
+                return datetime.strptime(date_str, fmt)
+            except ValueError:
+                continue
+        return pd.NaT
+
     # --- Tratamento da Planilha AI QUE FOME ---
     # Manter apenas as colunas desejadas
     df_aiquefome = df_aiquefome[['Nro. Pedido', 'Data', 'Total (R$)', 'Desconto (R$)']]
 
     # Remover o horário da coluna 'Data' se houver e converter para datetime
-    df_aiquefome['Data'] = pd.to_datetime(df_aiquefome['Data'].astype(str).str.split(' ').str[0], dayfirst=True, errors='coerce')
+    df_aiquefome['Data'] = df_aiquefome['Data'].astype(str).str.split(' ').str[0].apply(parse_date)
 
     # Verificar e informar datas inválidas
     datas_invalidas_aiquefome = df_aiquefome[df_aiquefome['Data'].isna()]
@@ -48,7 +58,7 @@ if uploaded_file_aiquefome is not None and uploaded_file_aiquefomedb is not None
     df_aiquefomedb = df_aiquefomedb[['DATA', 'VALOR', 'ID PEDIDO']]
 
     # Remover o horário da coluna 'DATA' se houver e converter para datetime
-    df_aiquefomedb['DATA'] = pd.to_datetime(df_aiquefomedb['DATA'].astype(str).str.split(' ').str[0], dayfirst=True, errors='coerce')
+    df_aiquefomedb['DATA'] = df_aiquefomedb['DATA'].astype(str).str.split(' ').str[0].apply(parse_date)
 
     # Verificar e informar datas inválidas
     datas_invalidas_aiquefomedb = df_aiquefomedb[df_aiquefomedb['DATA'].isna()]
@@ -63,7 +73,11 @@ if uploaded_file_aiquefome is not None and uploaded_file_aiquefomedb is not None
     df_aiquefomedb['VALOR'] = df_aiquefomedb['VALOR'].astype(float)
 
     # Renomear colunas para evitar conflitos e facilitar o merge
-    df_aiquefomedb.rename(columns={'DATA': 'Data', 'VALOR': 'Valor AI QUE FOME DB'}, inplace=True)
+    # Renomeia 'DATA' para 'Data DB' para manter ambas as datas no resultado final
+    df_aiquefomedb.rename(columns={'DATA': 'Data DB', 'VALOR': 'Valor AI QUE FOME DB'}, inplace=True)
+
+    # Criar uma coluna 'Data' duplicada para uso no merge
+    df_aiquefomedb['Data'] = df_aiquefomedb['Data DB']
 
     # Ordena os DataFrames por 'Valor' para consistência
     df_aiquefome.sort_values('Valor AI QUE FOME', ascending=True, inplace=True)
