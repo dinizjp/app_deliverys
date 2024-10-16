@@ -1,58 +1,31 @@
 import streamlit as st
 import pandas as pd
 from io import BytesIO
-import os
 
 st.title('Comparação de Planilhas AI QUE FOME e AI QUE FOME DB')
 
 # Upload da planilha do AI QUE FOME
-uploaded_file_aiquefome = st.file_uploader('Carregar planilha AI QUE FOME', type=['xls', 'xlsx'], key='aiquefome')
+uploaded_file_aiquefome = st.file_uploader('Carregar planilha AI QUE FOME', type=['xls'], key='aiquefome')
 
 # Upload da planilha AI QUE FOME DB
-uploaded_file_aiquefomedb = st.file_uploader('Carregar planilha AI QUE FOME DB', type=['xls', 'xlsx'], key='aiquefomedb')
+uploaded_file_aiquefomedb = st.file_uploader('Carregar planilha AI QUE FOME DB', type=['xlsx'], key='aiquefomedb')
 
 # Verifica se ambos os arquivos foram carregados
 if uploaded_file_aiquefome is not None and uploaded_file_aiquefomedb is not None:
-    # Detectar a extensão dos arquivos para usar o engine adequado
-    ext_aiquefome = os.path.splitext(uploaded_file_aiquefome.name)[1]
-    ext_aiquefomedb = os.path.splitext(uploaded_file_aiquefomedb.name)[1]
-    engine_aiquefome = 'xlrd' if ext_aiquefome == '.xls' else 'openpyxl'
-    engine_aiquefomedb = 'xlrd' if ext_aiquefomedb == '.xls' else 'openpyxl'
-
-    # Carrega as planilhas, lendo a coluna de data como string
-    df_aiquefome = pd.read_excel(
-        uploaded_file_aiquefome,
-        engine=engine_aiquefome,
-        dtype={'Data': str}
-    )
-    df_aiquefomedb = pd.read_excel(
-        uploaded_file_aiquefomedb,
-        engine=engine_aiquefomedb,
-        dtype={'DATA': str}
-    )
+    # Carrega as planilhas
+    df_aiquefome = pd.read_excel(uploaded_file_aiquefome)
+    df_aiquefomedb = pd.read_excel(uploaded_file_aiquefomedb)
 
     # Tratamento da planilha AI QUE FOME
     # Manter apenas as colunas desejadas
     df_aiquefome = df_aiquefome[['Nro. Pedido', 'Data', 'Total (R$)', 'Desconto (R$)']]
 
-    # Remover o horário da coluna 'Data' (se houver)
-    df_aiquefome['Data'] = df_aiquefome['Data'].str.split(' ').str[0]
-
-    # Converter 'Data' para datetime especificando o formato exato
-    df_aiquefome['Data'] = pd.to_datetime(
-        df_aiquefome['Data'],
-        format='%d/%m/%Y',
-        errors='coerce'
-    )
-
-    # Verificar se há valores nulos na coluna 'Data'
-    if df_aiquefome['Data'].isnull().any():
-        st.error("Algumas datas na planilha AI QUE FOME não puderam ser convertidas. Verifique o formato das datas.")
-        st.stop()
+    # Converter 'Data' para datetime e formatar para dia/mês/ano
+    df_aiquefome['Data'] = pd.to_datetime(df_aiquefome['Data']).dt.strftime('%d/%m/%Y')
 
     # Remover símbolos de moeda e converter 'Total (R$)' e 'Desconto (R$)' para float
     for col in ['Total (R$)', 'Desconto (R$)']:
-        df_aiquefome[col] = df_aiquefome[col].replace({'[R$ ]': '', ',': '.', '\s+': ''}, regex=True)
+        df_aiquefome[col] = df_aiquefome[col].replace({'R\$': '', ',': '.', '\s+': ''}, regex=True)
         df_aiquefome[col] = df_aiquefome[col].astype(float)
 
     # Substituir NaN em 'Desconto (R$)' por 0
@@ -65,20 +38,8 @@ if uploaded_file_aiquefome is not None and uploaded_file_aiquefomedb is not None
     # Manter apenas as colunas desejadas
     df_aiquefomedb = df_aiquefomedb[['DATA', 'VALOR', 'ID PEDIDO']]
 
-    # Remover o horário da coluna 'DATA' (se houver)
-    df_aiquefomedb['DATA'] = df_aiquefomedb['DATA'].str.split(' ').str[0]
-
-    # Converter 'DATA' para datetime especificando o formato exato
-    df_aiquefomedb['DATA'] = pd.to_datetime(
-        df_aiquefomedb['DATA'],
-        format='%d/%m/%Y',
-        errors='coerce'
-    )
-
-    # Verificar se há valores nulos na coluna 'DATA'
-    if df_aiquefomedb['DATA'].isnull().any():
-        st.error("Algumas datas na planilha AI QUE FOME DB não puderam ser convertidas. Verifique o formato das datas.")
-        st.stop()
+    # Converter 'DATA' para datetime e formatar para dia/mês/ano
+    df_aiquefomedb['DATA'] = pd.to_datetime(df_aiquefomedb['DATA']).dt.strftime('%d/%m/%Y')
 
     # Converter 'VALOR' para float
     df_aiquefomedb['VALOR'] = df_aiquefomedb['VALOR'].astype(float)
