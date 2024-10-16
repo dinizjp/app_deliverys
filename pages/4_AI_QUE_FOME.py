@@ -39,7 +39,7 @@ if uploaded_file_aiquefome is not None and uploaded_file_aiquefomedb is not None
     df_aiquefomedb = df_aiquefomedb[['DATA', 'VALOR', 'ID PEDIDO']]
 
     # Converter 'DATA' para datetime e formatar para dia/mês/ano
-    df_aiquefomedb['DATA'] = pd.to_datetime(df_aiquefomedb['DATA']).dt.strftime('%d/%m/%Y')
+    df_aiquefomedb['DATA'] = pd.to_datetime(df_aiquefomedb['DATA']).dt.('%d/%m/%Y')
 
     # Converter 'VALOR' para float
     df_aiquefomedb['VALOR'] = df_aiquefomedb['VALOR'].astype(float)
