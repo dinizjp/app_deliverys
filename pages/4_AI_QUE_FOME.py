@@ -22,7 +22,7 @@ if uploaded_file_aiquefome is not None and uploaded_file_aiquefomedb is not None
         for fmt in ('%d/%m/%Y', '%m/%d/%Y', '%Y-%m-%d'):
             try:
                 return datetime.strptime(date_str, fmt)
-            except ValueError:
+            except (ValueError, TypeError):
                 continue
         return pd.NaT
 
