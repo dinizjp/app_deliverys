@@ -40,14 +40,12 @@ if uploaded_file_tonolucro is not None and uploaded_file_tonolucrodb is not None
         st.write(datas_invalidas_tonolucro)
 
     # Formatar para 'dd/mm/yyyy' onde possível
-    df_tonolucro['Data'] = df_tonolucro['Data'].dt.strftime('%d/%m/%Y')
+    df_tonolucro['Data'] = df_tonolucro['Data'].dt.date
 
     # Remover símbolos de moeda e converter 'Valor' para float
     for col in ['Valor']:
         df_tonolucro[col] = df_tonolucro[col].replace({'R\$': '', ',': '.', '\s+': ''}, regex=True)
-        df_tonolucro[col] = df_tonolucro[col].astype(float)
-
-    # Manter apenas as colunas desejadas (já feito acima)
+        df_tonolucro[col] = pd.to_numeric(df_tonolucro[col], errors='coerce').fillna(0)
 
     # --- Tratamento da Planilha Tonolucro DB ---
     # Manter apenas as colunas desejadas
@@ -63,13 +61,12 @@ if uploaded_file_tonolucro is not None and uploaded_file_tonolucrodb is not None
         st.write(datas_invalidas_tonolucrodb)
 
     # Formatar para 'dd/mm/yyyy' onde possível
-    df_tonolucrodb['DATA'] = df_tonolucrodb['DATA'].dt.strftime('%d/%m/%Y')
+    df_tonolucrodb['DATA'] = df_tonolucrodb['DATA'].dt.date
 
     # Converter 'VALOR' para float
-    df_tonolucrodb['VALOR'] = df_tonolucrodb['VALOR'].astype(float)
+    df_tonolucrodb['VALOR'] = pd.to_numeric(df_tonolucrodb['VALOR'], errors='coerce').fillna(0)
 
     # Renomear colunas para evitar conflitos e facilitar o merge
-    # Renomeia 'DATA' para 'Data DB' para manter ambas as datas no resultado final
     df_tonolucrodb.rename(columns={'DATA': 'Data DB', 'VALOR': 'Valor Tonolucro DB'}, inplace=True)
 
     # Criar uma coluna 'Data' duplicada para uso no merge
@@ -83,43 +80,48 @@ if uploaded_file_tonolucro is not None and uploaded_file_tonolucrodb is not None
     df_tonolucro = df_tonolucro.reset_index(drop=True)
     df_tonolucrodb = df_tonolucrodb.reset_index(drop=True)
 
-    # Criar listas para armazenar os índices já utilizados
-    indices_utilizados_tonolucro = []
-    indices_utilizados_tonolucrodb = []
+    # Adicionar uma coluna para marcar se a linha foi correspondida
+    df_tonolucrodb['Correspondido'] = False
 
     # Lista para armazenar os resultados
     resultados = []
 
-    # Loop sobre cada linha da planilha do Tonolucro
+    # Correspondência por Data e Valor
     for i, row_tonolucro in df_tonolucro.iterrows():
-        # Encontrar correspondência na planilha Tonolucro DB
         correspondencia = df_tonolucrodb[
             (df_tonolucrodb['Data'] == row_tonolucro['Data']) &
             (df_tonolucrodb['Valor Tonolucro DB'] == row_tonolucro['Valor']) &
-            (~df_tonolucrodb.index.isin(indices_utilizados_tonolucrodb))
-        ].head(1)
+            (~df_tonolucrodb['Correspondido'])
+        ]
 
         if not correspondencia.empty:
-            resultados.append((row_tonolucro, correspondencia.iloc[0]))
-            indices_utilizados_tonolucro.append(i)
-            indices_utilizados_tonolucrodb.append(correspondencia.index[0])
+            correspondencia = correspondencia.iloc[0]
+            resultados.append((row_tonolucro, correspondencia, 'Correspondente'))
+            df_tonolucrodb.at[correspondencia.name, 'Correspondido'] = True
         else:
-            resultados.append((row_tonolucro, pd.Series()))
-            indices_utilizados_tonolucro.append(i)
+            resultados.append((row_tonolucro, pd.Series(), 'Diferença'))
 
     # Adicionar as linhas da planilha Tonolucro DB que não foram correspondidas
     for j, row_tonolucrodb in df_tonolucrodb.iterrows():
-        if j not in indices_utilizados_tonolucrodb:
-            resultados.append((pd.Series(), row_tonolucrodb))
-            indices_utilizados_tonolucrodb.append(j)
+        if not row_tonolucrodb['Correspondido']:
+            resultados.append((pd.Series(), row_tonolucrodb, 'Diferença'))
 
     # Criar DataFrame final, mantendo todas as colunas das duas planilhas
     final_result = pd.DataFrame([{
-        **row_tonolucro.to_dict(),
-        **row_tonolucrodb.to_dict()
-    } for row_tonolucro, row_tonolucrodb in resultados])
+        'Número do pedido': row_tonolucro['Número do pedido'] if 'Número do pedido' in row_tonolucro else '',
+        'Data Tonolucro': row_tonolucro['Data'].strftime('%d/%m/%Y') if 'Data' in row_tonolucro and pd.notnull(row_tonolucro['Data']) else '',
+        'Valor Tonolucro': row_tonolucro['Valor'] if 'Valor' in row_tonolucro else 0,
+        'ID PEDIDO': row_tonolucrodb['ID PEDIDO'] if 'ID PEDIDO' in row_tonolucrodb else '',
+        'Data Tonolucro DB': row_tonolucrodb['Data DB'].strftime('%d/%m/%Y') if 'Data DB' in row_tonolucrodb and pd.notnull(row_tonolucrodb['Data DB']) else '',
+        'Valor Tonolucro DB': row_tonolucrodb['Valor Tonolucro DB'] if 'Valor Tonolucro DB' in row_tonolucrodb else 0,
+        'Discrepância Inicial': status
+    } for row_tonolucro, row_tonolucrodb, status in resultados])
 
-    # Substituir NaN por vazio para melhor visualização
+    # Converter as colunas de valores para numérico e substituir NaN por 0
+    final_result['Valor Tonolucro'] = pd.to_numeric(final_result['Valor Tonolucro'], errors='coerce').fillna(0)
+    final_result['Valor Tonolucro DB'] = pd.to_numeric(final_result['Valor Tonolucro DB'], errors='coerce').fillna(0)
+
+    # Substituir NaN por vazio para melhor visualização nas outras colunas
     final_result.fillna('', inplace=True)
 
     # Converter o DataFrame final em um objeto BytesIO
@@ -128,31 +130,6 @@ if uploaded_file_tonolucro is not None and uploaded_file_tonolucrodb is not None
         final_result.to_excel(writer, index=False, sheet_name='Resultado')
         workbook = writer.book
         worksheet = writer.sheets['Resultado']
-
-        # Encontrar as posições das colunas 'Valor Tonolucro' e 'Valor Tonolucro DB'
-        valor_col_tonolucro = final_result.columns.get_loc('Valor')
-        valor_col_tonolucrodb = final_result.columns.get_loc('Valor Tonolucro DB')
-
-        # Adicionar a coluna 'Diferença' após a última coluna
-        diferenca_col = len(final_result.columns)
-        worksheet.write(0, diferenca_col, 'Diferença')
-
-        # Função para converter índice de coluna para letra(s) do Excel
-        def col_letter(col_index):
-            letter = ''
-            while col_index >= 0:
-                letter = chr(col_index % 26 + 65) + letter
-                col_index = col_index // 26 - 1
-            return letter
-
-        # Escrever a fórmula de diferença para cada linha
-        for row_num in range(1, len(final_result) + 1):
-            col_tonolucrodb_letter = col_letter(valor_col_tonolucrodb)
-            col_tonolucro_letter = col_letter(valor_col_tonolucro)
-            cell_formula = f"=IF(ISBLANK({col_tonolucrodb_letter}{row_num + 1})," \
-                           f"{col_tonolucro_letter}{row_num + 1}," \
-                           f"{col_tonolucro_letter}{row_num + 1}-{col_tonolucrodb_letter}{row_num + 1})"
-            worksheet.write_formula(row_num, diferenca_col, cell_formula)
 
         # Definir a linha onde os totais serão escritos (após os dados)
         total_row = len(final_result) + 1  # +1 por causa do cabeçalho
@@ -163,10 +140,16 @@ if uploaded_file_tonolucro is not None and uploaded_file_tonolucrodb is not None
         # Formatar as colunas de valores como moeda
         currency_format = workbook.add_format({'num_format': 'R$ #,##0.00'})
 
+        # Definir as colunas que serão somadas
+        colunas_soma = {
+            'Valor Tonolucro': final_result.columns.get_loc('Valor Tonolucro'),
+            'Valor Tonolucro DB': final_result.columns.get_loc('Valor Tonolucro DB'),
+        }
+
         # Escrever as fórmulas de soma para as colunas de valores
-        for col_index in [valor_col_tonolucro, valor_col_tonolucrodb]:
-            col_letter_formula = col_letter(col_index)
-            formula = f"=SUM({col_letter_formula}2:{col_letter_formula}{total_row})"
+        for label, col_index in colunas_soma.items():
+            col_letter = chr(65 + col_index)
+            formula = f"=SUM({col_letter}2:{col_letter}{total_row})"
             worksheet.write_formula(
                 total_row,
                 col_index,
@@ -176,20 +159,8 @@ if uploaded_file_tonolucro is not None and uploaded_file_tonolucrodb is not None
             # Aplicar o formato de moeda às colunas
             worksheet.set_column(col_index, col_index, 15, currency_format)
 
-        # Soma dos valores absolutos para a coluna 'Diferença'
-        col_letter_diferenca = col_letter(diferenca_col)
-        formula_diferenca = f"=SUMPRODUCT(ABS({col_letter_diferenca}2:{col_letter_diferenca}{total_row}))"
-        worksheet.write_formula(
-            total_row,
-            diferenca_col,
-            formula_diferenca,
-            currency_format
-        )
-        # Aplicar o formato de moeda à coluna 'Diferença'
-        worksheet.set_column(diferenca_col, diferenca_col, 15, currency_format)
-
         # Ajustar a largura das colunas para melhor visualização
-        worksheet.set_column(0, len(final_result.columns), 18)
+        worksheet.set_column(0, len(final_result.columns) - 1, 18)
 
     # Obter o conteúdo do BytesIO
     processed_data = output.getvalue()

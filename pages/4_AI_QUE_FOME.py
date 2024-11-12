@@ -40,12 +40,12 @@ if uploaded_file_aiquefome is not None and uploaded_file_aiquefomedb is not None
         st.write(datas_invalidas_aiquefome)
 
     # Formatar para 'dd/mm/yyyy' onde possível
-    df_aiquefome['Data'] = df_aiquefome['Data'].dt.strftime('%d/%m/%Y')
+    df_aiquefome['Data'] = df_aiquefome['Data'].dt.date
 
     # Remover símbolos de moeda e converter 'Total (R$)' e 'Desconto (R$)' para float
     for col in ['Total (R$)', 'Desconto (R$)']:
         df_aiquefome[col] = df_aiquefome[col].replace({'R\$': '', ',': '.', '\s+': ''}, regex=True)
-        df_aiquefome[col] = df_aiquefome[col].astype(float)
+        df_aiquefome[col] = pd.to_numeric(df_aiquefome[col], errors='coerce').fillna(0)
 
     # Substituir NaN em 'Desconto (R$)' por 0
     df_aiquefome['Desconto (R$)'] = df_aiquefome['Desconto (R$)'].fillna(0)
@@ -67,63 +67,67 @@ if uploaded_file_aiquefome is not None and uploaded_file_aiquefomedb is not None
         st.write(datas_invalidas_aiquefomedb)
 
     # Formatar para 'dd/mm/yyyy' onde possível
-    df_aiquefomedb['DATA'] = df_aiquefomedb['DATA'].dt.strftime('%d/%m/%Y')
+    df_aiquefomedb['DATA'] = df_aiquefomedb['DATA'].dt.date
 
     # Converter 'VALOR' para float
-    df_aiquefomedb['VALOR'] = df_aiquefomedb['VALOR'].astype(float)
+    df_aiquefomedb['VALOR'] = pd.to_numeric(df_aiquefomedb['VALOR'], errors='coerce').fillna(0)
 
     # Renomear colunas para evitar conflitos e facilitar o merge
-    # Renomeia 'DATA' para 'Data DB' para manter ambas as datas no resultado final
     df_aiquefomedb.rename(columns={'DATA': 'Data DB', 'VALOR': 'Valor AI QUE FOME DB'}, inplace=True)
 
     # Criar uma coluna 'Data' duplicada para uso no merge
     df_aiquefomedb['Data'] = df_aiquefomedb['Data DB']
 
-    # Ordena os DataFrames por 'Valor' para consistência
-    df_aiquefome.sort_values('Valor AI QUE FOME', ascending=True, inplace=True)
-    df_aiquefomedb.sort_values('Valor AI QUE FOME DB', ascending=True, inplace=True)
+    # Ordena os DataFrames por 'Data' e 'Valor' para consistência
+    df_aiquefome.sort_values(['Data', 'Valor AI QUE FOME'], ascending=[True, True], inplace=True)
+    df_aiquefomedb.sort_values(['Data', 'Valor AI QUE FOME DB'], ascending=[True, True], inplace=True)
 
     # Resetar os índices
     df_aiquefome = df_aiquefome.reset_index(drop=True)
     df_aiquefomedb = df_aiquefomedb.reset_index(drop=True)
 
-    # Criar listas para armazenar os índices já utilizados
-    indices_utilizados_aiquefome = []
-    indices_utilizados_aiquefomedb = []
+    # Adicionar uma coluna para marcar se a linha foi correspondida
+    df_aiquefomedb['Correspondido'] = False
 
     # Lista para armazenar os resultados
     resultados = []
 
-    # Loop sobre cada linha da planilha AI QUE FOME
+    # Correspondência por Data e Valor
     for i, row_aiquefome in df_aiquefome.iterrows():
-        # Encontrar correspondência na planilha AI QUE FOME DB
         correspondencia = df_aiquefomedb[
             (df_aiquefomedb['Data'] == row_aiquefome['Data']) &
             (df_aiquefomedb['Valor AI QUE FOME DB'] == row_aiquefome['Valor AI QUE FOME']) &
-            (~df_aiquefomedb.index.isin(indices_utilizados_aiquefomedb))
-        ].head(1)
+            (~df_aiquefomedb['Correspondido'])
+        ]
 
         if not correspondencia.empty:
-            resultados.append((row_aiquefome, correspondencia.iloc[0]))
-            indices_utilizados_aiquefome.append(i)
-            indices_utilizados_aiquefomedb.append(correspondencia.index[0])
+            correspondencia = correspondencia.iloc[0]
+            resultados.append((row_aiquefome, correspondencia, 'Correspondente'))
+            df_aiquefomedb.at[correspondencia.name, 'Correspondido'] = True
         else:
-            resultados.append((row_aiquefome, pd.Series()))
-            indices_utilizados_aiquefome.append(i)
+            resultados.append((row_aiquefome, pd.Series(), 'Diferença'))
 
     # Adicionar as linhas da planilha AI QUE FOME DB que não foram correspondidas
     for j, row_aiquefomedb in df_aiquefomedb.iterrows():
-        if j not in indices_utilizados_aiquefomedb:
-            resultados.append((pd.Series(), row_aiquefomedb))
-            indices_utilizados_aiquefomedb.append(j)
+        if not row_aiquefomedb['Correspondido']:
+            resultados.append((pd.Series(), row_aiquefomedb, 'Diferença'))
 
     # Criar DataFrame final, mantendo todas as colunas das duas planilhas
     final_result = pd.DataFrame([{
-        **row_aiquefome.to_dict(),
-        **row_aiquefomedb.to_dict()
-    } for row_aiquefome, row_aiquefomedb in resultados])
+        'Nro. Pedido': row_aiquefome['Nro. Pedido'] if 'Nro. Pedido' in row_aiquefome else '',
+        'Data AI QUE FOME': row_aiquefome['Data'].strftime('%d/%m/%Y') if 'Data' in row_aiquefome and pd.notnull(row_aiquefome['Data']) else '',
+        'Valor AI QUE FOME': row_aiquefome['Valor AI QUE FOME'] if 'Valor AI QUE FOME' in row_aiquefome else 0,
+        'ID PEDIDO': row_aiquefomedb['ID PEDIDO'] if 'ID PEDIDO' in row_aiquefomedb else '',
+        'Data AI QUE FOME DB': row_aiquefomedb['Data DB'].strftime('%d/%m/%Y') if 'Data DB' in row_aiquefomedb and pd.notnull(row_aiquefomedb['Data DB']) else '',
+        'Valor AI QUE FOME DB': row_aiquefomedb['Valor AI QUE FOME DB'] if 'Valor AI QUE FOME DB' in row_aiquefomedb else 0,
+        'Discrepância Inicial': status
+    } for row_aiquefome, row_aiquefomedb, status in resultados])
 
-    # Substituir NaN por vazio para melhor visualização
+    # Converter as colunas de valores para numérico e substituir NaN por 0
+    final_result['Valor AI QUE FOME'] = pd.to_numeric(final_result['Valor AI QUE FOME'], errors='coerce').fillna(0)
+    final_result['Valor AI QUE FOME DB'] = pd.to_numeric(final_result['Valor AI QUE FOME DB'], errors='coerce').fillna(0)
+
+    # Substituir NaN por vazio para melhor visualização nas outras colunas
     final_result.fillna('', inplace=True)
 
     # Converter o DataFrame final em um objeto BytesIO
@@ -132,31 +136,6 @@ if uploaded_file_aiquefome is not None and uploaded_file_aiquefomedb is not None
         final_result.to_excel(writer, index=False, sheet_name='Resultado')
         workbook = writer.book
         worksheet = writer.sheets['Resultado']
-
-        # Encontrar as posições das colunas de valores
-        valor_col_aiquefome = final_result.columns.get_loc('Valor AI QUE FOME')
-        valor_col_aiquefomedb = final_result.columns.get_loc('Valor AI QUE FOME DB')
-
-        # Adicionar a coluna 'Diferença' após a última coluna
-        diferenca_col = len(final_result.columns)
-        worksheet.write(0, diferenca_col, 'Diferença')
-
-        # Função para converter índice de coluna para letra(s) do Excel
-        def col_letter(col_index):
-            letter = ''
-            while col_index >= 0:
-                letter = chr(col_index % 26 + 65) + letter
-                col_index = col_index // 26 - 1
-            return letter
-
-        # Escrever a fórmula de diferença para cada linha
-        for row_num in range(1, len(final_result) + 1):
-            col_aiquefomedb_letter = col_letter(valor_col_aiquefomedb)
-            col_aiquefome_letter = col_letter(valor_col_aiquefome)
-            cell_formula = f"=IF(ISBLANK({col_aiquefomedb_letter}{row_num + 1})," \
-                           f"{col_aiquefome_letter}{row_num + 1}," \
-                           f"{col_aiquefome_letter}{row_num + 1}-{col_aiquefomedb_letter}{row_num + 1})"
-            worksheet.write_formula(row_num, diferenca_col, cell_formula)
 
         # Definir a linha onde os totais serão escritos (após os dados)
         total_row = len(final_result) + 1  # +1 por causa do cabeçalho
@@ -167,10 +146,16 @@ if uploaded_file_aiquefome is not None and uploaded_file_aiquefomedb is not None
         # Formatar as colunas de valores como moeda
         currency_format = workbook.add_format({'num_format': 'R$ #,##0.00'})
 
+        # Definir as colunas que serão somadas
+        colunas_soma = {
+            'Valor AI QUE FOME': final_result.columns.get_loc('Valor AI QUE FOME'),
+            'Valor AI QUE FOME DB': final_result.columns.get_loc('Valor AI QUE FOME DB'),
+        }
+
         # Escrever as fórmulas de soma para as colunas de valores
-        for col_index in [valor_col_aiquefome, valor_col_aiquefomedb]:
-            col_letter_formula = col_letter(col_index)
-            formula = f"=SUM({col_letter_formula}2:{col_letter_formula}{total_row})"
+        for label, col_index in colunas_soma.items():
+            col_letter = chr(65 + col_index)
+            formula = f"=SUM({col_letter}2:{col_letter}{total_row})"
             worksheet.write_formula(
                 total_row,
                 col_index,
@@ -180,20 +165,8 @@ if uploaded_file_aiquefome is not None and uploaded_file_aiquefomedb is not None
             # Aplicar o formato de moeda às colunas
             worksheet.set_column(col_index, col_index, 15, currency_format)
 
-        # Soma dos valores absolutos para a coluna 'Diferença'
-        col_letter_diferenca = col_letter(diferenca_col)
-        formula_diferenca = f"=SUMPRODUCT(ABS({col_letter_diferenca}2:{col_letter_diferenca}{total_row}))"
-        worksheet.write_formula(
-            total_row,
-            diferenca_col,
-            formula_diferenca,
-            currency_format
-        )
-        # Aplicar o formato de moeda à coluna 'Diferença'
-        worksheet.set_column(diferenca_col, diferenca_col, 15, currency_format)
-
         # Ajustar a largura das colunas para melhor visualização
-        worksheet.set_column(0, len(final_result.columns), 18)
+        worksheet.set_column(0, len(final_result.columns) - 1, 18)
 
     # Obter o conteúdo do BytesIO
     processed_data = output.getvalue()

@@ -20,79 +20,85 @@ if uploaded_file_maisdelivery is not None and uploaded_file_maisdeliverydb is no
     # Manter apenas as colunas desejadas
     df_maisdelivery = df_maisdelivery[['Data Pedido', 'Número', 'Valor (R$)']]
 
-    # Converter 'Data Pedido' para datetime com dayfirst=True e formatar para dia/mês/ano
+    # Converter 'Data Pedido' para datetime com dayfirst=True
     df_maisdelivery['Data Pedido'] = pd.to_datetime(
         df_maisdelivery['Data Pedido'],
         dayfirst=True,
         errors='coerce'
-    ).dt.strftime('%d/%m/%Y')
+    ).dt.date
 
     # Remover o símbolo 'R$' e converter 'Valor (R$)' para float
     df_maisdelivery['Valor (R$)'] = df_maisdelivery['Valor (R$)'].replace({'R\$': '', ',': '.', '\s+': ''}, regex=True)
-    df_maisdelivery['Valor (R$)'] = df_maisdelivery['Valor (R$)'].astype(float)
+    df_maisdelivery['Valor (R$)'] = pd.to_numeric(df_maisdelivery['Valor (R$)'], errors='coerce').fillna(0)
 
     # Tratamento da planilha Mais Delivery DB
     # Manter apenas as colunas desejadas
     df_maisdeliverydb = df_maisdeliverydb[['DATA', 'VALOR', 'ID PEDIDO']]
 
-    # Converter 'DATA' para datetime com dayfirst=True e formatar para dia/mês/ano
+    # Converter 'DATA' para datetime com dayfirst=True
     df_maisdeliverydb['DATA'] = pd.to_datetime(
         df_maisdeliverydb['DATA'],
         dayfirst=True,
         errors='coerce'
-    ).dt.strftime('%d/%m/%Y')
+    ).dt.date
 
     # Converter 'VALOR' para float
-    df_maisdeliverydb['VALOR'] = df_maisdeliverydb['VALOR'].astype(float)
+    df_maisdeliverydb['VALOR'] = pd.to_numeric(df_maisdeliverydb['VALOR'], errors='coerce').fillna(0)
 
     # Renomear colunas para evitar conflitos e facilitar o merge
     df_maisdelivery.rename(columns={'Data Pedido': 'Data', 'Valor (R$)': 'Valor Mais Delivery'}, inplace=True)
     df_maisdeliverydb.rename(columns={'DATA': 'Data', 'VALOR': 'Valor Mais Delivery DB'}, inplace=True)
-    # Ordena os DataFrames por 'Valor' para consistência
-    df_maisdelivery.sort_values('Valor Mais Delivery', ascending=True, inplace=True)
-    df_maisdeliverydb.sort_values('Valor Mais Delivery DB', ascending=True, inplace=True)
+
+    # Ordena os DataFrames por 'Data' e 'Valor' para consistência
+    df_maisdelivery.sort_values(['Data', 'Valor Mais Delivery'], ascending=[True, True], inplace=True)
+    df_maisdeliverydb.sort_values(['Data', 'Valor Mais Delivery DB'], ascending=[True, True], inplace=True)
 
     # Resetar os índices
-    df_maisdelivery = df_maisdelivery.reset_index(drop=True)
-    df_maisdeliverydb = df_maisdeliverydb.reset_index(drop=True)
+    df_maisdelivery.reset_index(drop=True, inplace=True)
+    df_maisdeliverydb.reset_index(drop=True, inplace=True)
 
-    # Criar listas para armazenar os índices já utilizados
-    indices_utilizados_maisdelivery = []
-    indices_utilizados_maisdeliverydb = []
+    # Adicionar uma coluna para marcar se a linha foi correspondida
+    df_maisdeliverydb['Correspondido'] = False
 
     # Lista para armazenar os resultados
     resultados = []
 
-    # Loop sobre cada linha da planilha Mais Delivery
+    # Correspondência por Data e Valor
     for i, row_maisdelivery in df_maisdelivery.iterrows():
-        # Encontrar correspondência na planilha Mais Delivery DB
         correspondencia = df_maisdeliverydb[
             (df_maisdeliverydb['Data'] == row_maisdelivery['Data']) &
             (df_maisdeliverydb['Valor Mais Delivery DB'] == row_maisdelivery['Valor Mais Delivery']) &
-            (~df_maisdeliverydb.index.isin(indices_utilizados_maisdeliverydb))
-        ].head(1)
+            (~df_maisdeliverydb['Correspondido'])
+        ]
 
         if not correspondencia.empty:
-            resultados.append((row_maisdelivery, correspondencia.iloc[0]))
-            indices_utilizados_maisdelivery.append(i)
-            indices_utilizados_maisdeliverydb.append(correspondencia.index[0])
+            correspondencia = correspondencia.iloc[0]
+            resultados.append((row_maisdelivery, correspondencia, 'Correspondente'))
+            df_maisdeliverydb.at[correspondencia.name, 'Correspondido'] = True
         else:
-            resultados.append((row_maisdelivery, pd.Series()))
-            indices_utilizados_maisdelivery.append(i)
+            resultados.append((row_maisdelivery, pd.Series(), 'Diferença'))
 
     # Adicionar as linhas da planilha Mais Delivery DB que não foram correspondidas
     for j, row_maisdeliverydb in df_maisdeliverydb.iterrows():
-        if j not in indices_utilizados_maisdeliverydb:
-            resultados.append((pd.Series(), row_maisdeliverydb))
-            indices_utilizados_maisdeliverydb.append(j)
+        if not row_maisdeliverydb['Correspondido']:
+            resultados.append((pd.Series(), row_maisdeliverydb, 'Diferença'))
 
     # Criar DataFrame final, mantendo todas as colunas das duas planilhas
     final_result = pd.DataFrame([{
-        **row_maisdelivery.to_dict(),
-        **row_maisdeliverydb.to_dict()
-    } for row_maisdelivery, row_maisdeliverydb in resultados])
+        'Número do Pedido': row_maisdelivery['Número'] if 'Número' in row_maisdelivery else '',
+        'Data Mais Delivery': row_maisdelivery['Data'].strftime('%d/%m/%Y') if 'Data' in row_maisdelivery and pd.notnull(row_maisdelivery['Data']) else '',
+        'Valor Mais Delivery': row_maisdelivery['Valor Mais Delivery'] if 'Valor Mais Delivery' in row_maisdelivery else 0,
+        'ID PEDIDO': row_maisdeliverydb['ID PEDIDO'] if 'ID PEDIDO' in row_maisdeliverydb else '',
+        'Data Mais Delivery DB': row_maisdeliverydb['Data'].strftime('%d/%m/%Y') if 'Data' in row_maisdeliverydb and pd.notnull(row_maisdeliverydb['Data']) else '',
+        'Valor Mais Delivery DB': row_maisdeliverydb['Valor Mais Delivery DB'] if 'Valor Mais Delivery DB' in row_maisdeliverydb else 0,
+        'Discrepância Inicial': status
+    } for row_maisdelivery, row_maisdeliverydb, status in resultados])
 
-    # Substituir NaN por vazio para melhor visualização
+    # Converter as colunas de valores para numérico e substituir NaN por 0
+    final_result['Valor Mais Delivery'] = pd.to_numeric(final_result['Valor Mais Delivery'], errors='coerce').fillna(0)
+    final_result['Valor Mais Delivery DB'] = pd.to_numeric(final_result['Valor Mais Delivery DB'], errors='coerce').fillna(0)
+
+    # Substituir NaN por vazio para melhor visualização nas outras colunas
     final_result.fillna('', inplace=True)
 
     # Converter o DataFrame final em um objeto BytesIO
@@ -101,21 +107,6 @@ if uploaded_file_maisdelivery is not None and uploaded_file_maisdeliverydb is no
         final_result.to_excel(writer, index=False, sheet_name='Resultado')
         workbook = writer.book
         worksheet = writer.sheets['Resultado']
-
-        # Encontrar as posições das colunas de valores
-        valor_col_maisdelivery = final_result.columns.get_loc('Valor Mais Delivery')
-        valor_col_maisdeliverydb = final_result.columns.get_loc('Valor Mais Delivery DB')
-
-        # Adicionar a coluna 'Diferença' após a última coluna
-        diferenca_col = len(final_result.columns)
-        worksheet.write(0, diferenca_col, 'Diferença')
-
-        # Escrever a fórmula de diferença para cada linha
-        for row_num in range(1, len(final_result) + 1):
-            cell_formula = f"=IF(ISBLANK(${chr(65 + valor_col_maisdeliverydb)}{row_num + 1})," \
-                           f"${chr(65 + valor_col_maisdelivery)}{row_num + 1}," \
-                           f"${chr(65 + valor_col_maisdelivery)}{row_num + 1}-${chr(65 + valor_col_maisdeliverydb)}{row_num + 1})"
-            worksheet.write_formula(row_num, diferenca_col, cell_formula)
 
         # Definir a linha onde os totais serão escritos (após os dados)
         total_row = len(final_result) + 1  # +1 por causa do cabeçalho
@@ -126,8 +117,14 @@ if uploaded_file_maisdelivery is not None and uploaded_file_maisdeliverydb is no
         # Formatar as colunas de valores como moeda
         currency_format = workbook.add_format({'num_format': 'R$ #,##0.00'})
 
+        # Definir as colunas que serão somadas
+        colunas_soma = {
+            'Valor Mais Delivery': final_result.columns.get_loc('Valor Mais Delivery'),
+            'Valor Mais Delivery DB': final_result.columns.get_loc('Valor Mais Delivery DB'),
+        }
+
         # Escrever as fórmulas de soma para as colunas de valores
-        for col_index in [valor_col_maisdelivery, valor_col_maisdeliverydb]:
+        for label, col_index in colunas_soma.items():
             col_letter = chr(65 + col_index)
             formula = f"=SUM({col_letter}2:{col_letter}{total_row})"
             worksheet.write_formula(
@@ -139,20 +136,8 @@ if uploaded_file_maisdelivery is not None and uploaded_file_maisdeliverydb is no
             # Aplicar o formato de moeda às colunas
             worksheet.set_column(col_index, col_index, 15, currency_format)
 
-        # Soma dos valores absolutos para a coluna 'Diferença'
-        col_letter = chr(65 + diferenca_col)
-        formula = f"=SUMPRODUCT(ABS({col_letter}2:{col_letter}{total_row}))"
-        worksheet.write_formula(
-            total_row,
-            diferenca_col,
-            formula,
-            currency_format
-        )
-        # Aplicar o formato de moeda à coluna 'Diferença'
-        worksheet.set_column(diferenca_col, diferenca_col, 15, currency_format)
-
         # Ajustar a largura das colunas para melhor visualização
-        worksheet.set_column(0, len(final_result.columns), 18)
+        worksheet.set_column(0, len(final_result.columns) - 1, 18)
 
     # Obter o conteúdo do BytesIO
     processed_data = output.getvalue()
