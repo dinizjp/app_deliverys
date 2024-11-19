@@ -39,9 +39,6 @@ if uploaded_file_tonolucro is not None and uploaded_file_tonolucrodb is not None
         st.warning("Existem datas inválidas na planilha Tonolucro que não puderam ser convertidas:")
         st.write(datas_invalidas_tonolucro)
 
-    # Formatar para 'dd/mm/yyyy' onde possível
-    df_tonolucro['Data'] = df_tonolucro['Data'].dt.date
-
     # Remover símbolos de moeda e converter 'Valor' para float
     for col in ['Valor']:
         df_tonolucro[col] = df_tonolucro[col].replace({'R\$': '', ',': '.', '\s+': ''}, regex=True)
@@ -60,21 +57,18 @@ if uploaded_file_tonolucro is not None and uploaded_file_tonolucrodb is not None
         st.warning("Existem datas inválidas na planilha Tonolucro DB que não puderam ser convertidas:")
         st.write(datas_invalidas_tonolucrodb)
 
-    # Formatar para 'dd/mm/yyyy' onde possível
-    df_tonolucrodb['DATA'] = df_tonolucrodb['DATA'].dt.date
-
     # Converter 'VALOR' para float
     df_tonolucrodb['VALOR'] = pd.to_numeric(df_tonolucrodb['VALOR'], errors='coerce').fillna(0)
 
     # Renomear colunas para evitar conflitos e facilitar o merge
     df_tonolucrodb.rename(columns={'DATA': 'Data DB', 'VALOR': 'Valor Tonolucro DB'}, inplace=True)
 
-    # Criar uma coluna 'Data' duplicada para uso no merge
+    # Criar uma coluna 'Data' duplicada para uso no merge e ordenação
     df_tonolucrodb['Data'] = df_tonolucrodb['Data DB']
 
-    # Ordena os DataFrames por 'Valor' para consistência
-    df_tonolucro.sort_values('Valor', ascending=True, inplace=True)
-    df_tonolucrodb.sort_values('Valor Tonolucro DB', ascending=True, inplace=True)
+    # --- Ordenação dos DataFrames por Data e Valor ---
+    df_tonolucro.sort_values(['Data', 'Valor'], ascending=[True, True], inplace=True)
+    df_tonolucrodb.sort_values(['Data', 'Valor Tonolucro DB'], ascending=[True, True], inplace=True)
 
     # Resetar os índices
     df_tonolucro = df_tonolucro.reset_index(drop=True)
@@ -109,20 +103,44 @@ if uploaded_file_tonolucro is not None and uploaded_file_tonolucrodb is not None
     # Criar DataFrame final, mantendo todas as colunas das duas planilhas
     final_result = pd.DataFrame([{
         'Número do pedido': row_tonolucro['Número do pedido'] if 'Número do pedido' in row_tonolucro else '',
-        'Data Tonolucro': row_tonolucro['Data'].strftime('%d/%m/%Y') if 'Data' in row_tonolucro and pd.notnull(row_tonolucro['Data']) else '',
+        'Data Tonolucro': row_tonolucro['Data'] if 'Data' in row_tonolucro and pd.notnull(row_tonolucro['Data']) else '',
         'Valor Tonolucro': row_tonolucro['Valor'] if 'Valor' in row_tonolucro else 0,
         'ID PEDIDO': row_tonolucrodb['ID PEDIDO'] if 'ID PEDIDO' in row_tonolucrodb else '',
-        'Data Tonolucro DB': row_tonolucrodb['Data DB'].strftime('%d/%m/%Y') if 'Data DB' in row_tonolucrodb and pd.notnull(row_tonolucrodb['Data DB']) else '',
+        'Data Tonolucro DB': row_tonolucrodb['Data DB'] if 'Data DB' in row_tonolucrodb and pd.notnull(row_tonolucrodb['Data DB']) else '',
         'Valor Tonolucro DB': row_tonolucrodb['Valor Tonolucro DB'] if 'Valor Tonolucro DB' in row_tonolucrodb else 0,
         'Discrepância Inicial': status
     } for row_tonolucro, row_tonolucrodb, status in resultados])
+
+    # **Criar coluna auxiliar para ordenação por data**
+    final_result['Data Ordenacao'] = final_result.apply(
+        lambda row: row['Data Tonolucro'] if row['Data Tonolucro'] != '' else row['Data Tonolucro DB'],
+        axis=1
+    )
+
+    # Converter 'Data Ordenacao' para datetime
+    final_result['Data Ordenacao'] = pd.to_datetime(final_result['Data Ordenacao'], errors='coerce')
+
+    # Ordenar o DataFrame final pela 'Data Ordenacao'
+    final_result.sort_values('Data Ordenacao', inplace=True)
+    final_result.reset_index(drop=True, inplace=True)
 
     # Converter as colunas de valores para numérico e substituir NaN por 0
     final_result['Valor Tonolucro'] = pd.to_numeric(final_result['Valor Tonolucro'], errors='coerce').fillna(0)
     final_result['Valor Tonolucro DB'] = pd.to_numeric(final_result['Valor Tonolucro DB'], errors='coerce').fillna(0)
 
+    # **Formatar as datas para string no formato 'dd/mm/yyyy'**
+    final_result['Data Tonolucro'] = final_result['Data Tonolucro'].apply(
+        lambda x: x.strftime('%d/%m/%Y') if pd.notnull(x) and x != '' else ''
+    )
+    final_result['Data Tonolucro DB'] = final_result['Data Tonolucro DB'].apply(
+        lambda x: x.strftime('%d/%m/%Y') if pd.notnull(x) and x != '' else ''
+    )
+
     # Substituir NaN por vazio para melhor visualização nas outras colunas
     final_result.fillna('', inplace=True)
+
+    # Remover a coluna auxiliar 'Data Ordenacao'
+    final_result.drop(columns=['Data Ordenacao'], inplace=True)
 
     # Converter o DataFrame final em um objeto BytesIO
     output = BytesIO()

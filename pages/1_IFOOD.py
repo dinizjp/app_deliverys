@@ -20,6 +20,11 @@ if uploaded_file_ifood is not None and uploaded_file_ifooddb is not None:
     colunas_desejadas_ifood = ['N° PEDIDO', 'DATA', 'VALOR DOS ITENS']
     df_ifood = df_ifood[colunas_desejadas_ifood]
 
+    # **Seleciona as colunas desejadas na planilha IfoodDB**
+    # Certifique-se de que a coluna 'ID PEDIDO' esteja incluída
+    colunas_desejadas_ifooddb = ['ID PEDIDO', 'DATA', 'VALOR']
+    df_ifooddb = df_ifooddb[colunas_desejadas_ifooddb]
+
     # Converter a coluna 'DATA' para datetime e normalizar (remover hora)
     df_ifood['DATA'] = pd.to_datetime(df_ifood['DATA'], dayfirst=True).dt.date
     df_ifooddb['DATA'] = pd.to_datetime(df_ifooddb['DATA'], dayfirst=True).dt.date
@@ -67,7 +72,7 @@ if uploaded_file_ifood is not None and uploaded_file_ifooddb is not None:
         'N° PEDIDO IFOOD': row_ifood['N° PEDIDO'] if 'N° PEDIDO' in row_ifood else '',
         'DATA IFOOD': row_ifood['DATA'].strftime('%d/%m/%Y') if 'DATA' in row_ifood and pd.notnull(row_ifood['DATA']) else '',
         'VALOR IFOOD': row_ifood['VALOR_IFOOD'] if 'VALOR_IFOOD' in row_ifood else 0,
-        'N° PEDIDO IfoodDB': row_ifooddb['N° PEDIDO'] if 'N° PEDIDO' in row_ifooddb else '',
+        'N° PEDIDO IfoodDB': row_ifooddb['ID PEDIDO'] if 'ID PEDIDO' in row_ifooddb else '',
         'DATA IfoodDB': row_ifooddb['DATA'].strftime('%d/%m/%Y') if 'DATA' in row_ifooddb and pd.notnull(row_ifooddb['DATA']) else '',
         'VALOR IfoodDB': row_ifooddb['VALOR_IfoodDB'] if 'VALOR_IfoodDB' in row_ifooddb else 0,
     } for row_ifood, row_ifooddb in resultados])
