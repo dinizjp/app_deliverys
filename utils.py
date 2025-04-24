@@ -9,7 +9,6 @@ from openpyxl import load_workbook
 from xlrd.compdoc import CompDocError
 
 
-
 def get_db_connection():
     # Recuperar as credenciais configuradas via secrets
     server   = st.secrets["mssql"]["server"]
