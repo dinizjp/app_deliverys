@@ -197,22 +197,6 @@ def process_aiquefome(uploaded_file):
     df.rename(columns={'Nro. Pedido': 'N° PEDIDO AI QUE FOME', 'Data': 'DATA AI QUE FOME'}, inplace=True)
     return df
 
-# 
-# def process_aiquefome(uploaded_file):
-    # """
-    # Processa a planilha do AI QUE FOME.
-    # Colunas esperadas: 'Nro. Pedido', 'Data', 'Total (R$)', 'Desconto (R$)'
-    # """
-    # df = pd.read_excel(uploaded_file)
-    # required = ['Nro. Pedido', 'Data', 'Total (R$)', 'Desconto (R$)']
-    # df = df[required]
-    # df['Data'] = pd.to_datetime(df['Data'], dayfirst=True, errors='coerce').dt.date
-    # for col in ['Total (R$)', 'Desconto (R$)']:
-        # df[col] = df[col].replace({r'R\$': '', ',': '.', r'\s+': ''}, regex=True)
-        # df[col] = pd.to_numeric(df[col], errors='coerce').fillna(0)
-    # df['Valor AI QUE FOME'] = df['Total (R$)'] + df['Desconto (R$)']
-    # df.rename(columns={'Nro. Pedido': 'N° PEDIDO AI QUE FOME', 'Data': 'DATA AI QUE FOME'}, inplace=True)
-    # return df
 
 def process_goomer(uploaded_file):
     """
