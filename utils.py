@@ -159,16 +159,40 @@ def process_ifood(uploaded_file):
 def process_mais_delivery(uploaded_file):
     """
     Processa a planilha do Mais Delivery.
-    Colunas esperadas: 'Data Pedido', 'Número', 'Valor (R$)'
+    Colunas esperadas: 'Data Pedido', 'Número', 'Valor (R$)'.
+    Se der erro de estilo no Openpyxl, recorre ao read_excel_nostyles.
     """
-    df = pd.read_excel(uploaded_file)
+    try:
+        df = pd.read_excel(uploaded_file)
+    except TypeError as e:
+        msg = str(e)
+        if "expected <class 'openpyxl.styles.fills.Fill'>" in msg:
+            # fallback para leitura sem estilos
+            df = read_excel_nostyles(uploaded_file)
+        else:
+            # se for outro TypeError, relança
+            raise
+
+    # agora garante que temos as colunas necessárias
     required = ['Data Pedido', 'Número', 'Valor (R$)']
     df = df[required]
+
+    # tratamento de data
     df['Data Pedido'] = pd.to_datetime(df['Data Pedido'], dayfirst=True, errors='coerce').dt.date
-    # Usar raw strings para os padrões de regex
-    df['Valor (R$)'] = df['Valor (R$)'].replace({r'R\$': '', ',': '.', r'\s+': ''}, regex=True)
-    df['Valor (R$)'] = pd.to_numeric(df['Valor (R$)'], errors='coerce').fillna(0)
-    df.rename(columns={'Data Pedido': 'DATA MAIS DELIVERY', 'Número': 'N° PEDIDO MAIS DELIVERY', 'Valor (R$)': 'VALOR MAIS DELIVERY'}, inplace=True)
+
+    # limpeza e conversão do valor
+    df['Valor (R$)'] = df['Valor (R$)'] \
+        .replace({r'R\$': '', r',': '.', r'\s+': ''}, regex=True) \
+        .pipe(pd.to_numeric, errors='coerce') \
+        .fillna(0)
+
+    # padroniza nomes para a consolidação
+    df.rename(columns={
+        'Data Pedido': 'DATA MAIS DELIVERY',
+        'Número': 'N° PEDIDO MAIS DELIVERY',
+        'Valor (R$)': 'VALOR MAIS DELIVERY'
+    }, inplace=True)
+
     return df
 
 def process_aiquefome(uploaded_file):
